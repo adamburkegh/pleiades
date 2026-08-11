@@ -47,7 +47,7 @@ The astronomical calculation use skyfield to interpolate. We choose de406 to cov
 
 The 2016 paper does not take into account that stars set in the west, and Mt Olympus of Lesbos is to the west of Myteline. So the horizon is higher, and the Pleiades would set earlier.
 
-    def horizon_adjust(from_location,to_location) -> Float:
+    def horizon_adjust(from_location,to_location) -> float:
         return None
 
 
@@ -70,6 +70,11 @@ The 2016 paper does not take into account that stars set in the west, and Mt Oly
 ## Authorship Debate
 
 This fragment is attested in antique sources but only attributed to Sappho during the Renaissance by Arsenius Apostolius. 
+
+
+## Development Process Notes
+
+This project was started with a hand authored high level specification in dating.lob, two function signatures with empty implementations for calculate_date() and horizon_adjust(), and two ~example tests. The code compiled and linted but the unit tests failed, in a consciously TDD style. A coding agent was then introduced to implement the project.
 
 
 # References
