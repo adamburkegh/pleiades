@@ -1,0 +1,92 @@
+# Astronomical Poetry Dating
+
+The silver moon is set;
+The Pleiades are gone;
+Half the long night is spent, and yet
+I lie alone.
+
+This is the John Merivale translation of fragment 58 by Sappho, often known as the Midnight Poem. In 2016, scholars combined the information in the poem, the location of the poet, and astronomical calculations to provide an estimate of when the poem was written (Cuntz et al, 2016). That particular estimate was 570 BC. This project reproduces the calculation using current data science tools. It also explores how sensitive the result is to parameter selection, the details of which are the result of deep scholarship. Indeed, scholars point out the poem may not even be by Sappho. (See ##Authorship Debate.)
+
+The calculation assumes the report of seeing the constellation at a particular time is factual, rather than fictional. It also places Sappho at Myteline.
+
+
+    def calculate_date(location,time_range,astro_ref,horizon_adjust=0) \
+            -> tuple : 
+        # return (-570,1,27)
+        return None
+        # TODO: implement
+
+This is the result from the 2016 paper.
+
+~example
+    (-570,1,27) == calculate_date(MYTELINE,SAPPHO_ADULT_LIFE,PLEIADES_ALCOYNE)
+
+
+Sappho lived from 630 to 570 BC.
+
+    SAPPHO_ADULT_LIFE = (-630+16,-570) 
+    # TODO Make an astronomical date with AD/BC inputs
+
+The location of Myteline and the Pleiades.
+
+    MYTELINE =  (39.11, 26.55)
+    # TODO Make an astronomical date with AD/BC inputs
+    PLEIADES_ALCOYNE = None # TODO Astronomical location HIP 17702
+
+
+
+## Astronomical Calculation
+
+The astronomical calculation use skyfield to interpolate. We choose de406 to cover the range 3000 BC - 3000 AD.
+
+
+
+
+
+## Horizon Adjustment
+
+The 2016 paper does not take into account that stars set in the west, and Mt Olympus of Lesbos is to the west of Myteline. So the horizon is higher, and the Pleiades would set earlier.
+
+    def horizon_adjust(from_location,to_location) -> Float:
+        return None
+
+
+    MT_OLYMPUS_OF_LESBOS = None     # lat/long TODO
+
+
+~example
+    563 == calculate_date(MYTELINE,SAPPHO_ADULT_LIFE,PLEIADES_ALCOYNE,
+                        horizon_adjust(MYTELINE,MT_OLYMPUS_OF_LESBOS)  )
+ 
+ 
+
+
+
+
+---
+
+#Appendix
+
+## Authorship Debate
+
+This fragment is attested in antique sources but only attributed to Sappho during the Renaissance by Arsenius Apostolius. 
+
+
+# References
+
+    # imports go here
+    # skyfield
+
+
+
+# Bibliography
+
+
+
+Cuntz, M., Gurdemir, L., & George, M. (2016). Seasonal Dating of Sappho’s ‘Midnight Poem’ Revisited. Journal of Astronomical History and Heritage, 19(1), 18-24.
+
+Wharton, H. (2018). Sappho. Project Gutenberg, https://www.gutenberg.org/files/57390/57390-h/57390-h.htm
+
+Wikipedia contributors. (2025, February 2). Midnight poem. In Wikipedia, The Free Encyclopedia. Retrieved 06:06, August 11, 2026, from https://en.wikipedia.org/w/index.php?title=Midnight_poem&oldid=1273552931
+
+
