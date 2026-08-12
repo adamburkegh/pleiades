@@ -7,7 +7,27 @@ A more detailed description is in [dating.lob](astronomical/poetry/dating.lob) i
 
 ## Building and Running
 
+Create isolated environment such as a venv in your preferred way. E.g., for
+venv on Windows:
+
+```
+python -m venv plei
+. plei/Scripts/activate
+```
+
+
+Install Python packages
+
+`pip install -e .`
+
+Build and run notlob. 
+
 `notlob test`
 
+On first run, `skyfield` data files of ~350 Mb will download to `var/`. 
+These are required for the project.
+
+This particular project doesn't have a main entry point - the correct execution 
+of the tests is the evidence for the assertions in the text.
 
 
