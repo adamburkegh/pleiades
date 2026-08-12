@@ -76,7 +76,7 @@ should be off.
 
 ~example
     calculate_date(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE
     ) == "26 January 570 BC"
 
 This is the result from the 2016 paper — reproduced by turning refraction
@@ -84,7 +84,7 @@ off, which is not what the paper itself did.
 
 ~example
     calculate_date(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE, refraction=False
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE, refraction=False
     ) == "25 January 570 BC"
 
 
@@ -97,7 +97,7 @@ from age sixteen to her death.
 The location of Myteline, and the Hipparcos catalog number for Alcyone.
 
     MYTELINE =  (39.11, 26.55)
-    PLEIADES_ALCOYNE = 17702
+    PLEIADES_ALCYONE = 17702
 
 
 
@@ -240,13 +240,13 @@ sensitive this search is to sub-degree changes in the threshold.
 
 ~example
     calculate_date(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE,
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
         horizon_adjust(MYTELINE, MT_OLYMPUS_OF_LESBOS)
     ) == "23 January 570 BC"
 
 ~example
     calculate_date(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE,
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
         horizon_adjust(MYTELINE, MT_OLYMPUS_OF_LESBOS), refraction=False
     ) == "23 January 570 BC"
 
@@ -276,7 +276,7 @@ horizon adjustment stay on throughout.
 
 ~example
     calculate_date_range(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE,
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
         MT_OLYMPUS_OF_LESBOS, MYTELINE_ELEVATION_RANGE
     ) == ("23 January 570 BC", "25 January 570 BC")
 
@@ -306,7 +306,7 @@ a sourced number.
 
 ~example
     calculate_date_midnight_range(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE, MIDNIGHT_OFFSET_RANGE
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE, MIDNIGHT_OFFSET_RANGE
     ) == ("10 February 570 BC", "10 January 570 BC")
 
 Alcyone's local setting time drifts only a few minutes earlier each night
@@ -334,7 +334,7 @@ running `calculate_date` at both ends of #SAPPHO_ADULT_LIFE, 614 and
 
 ~example
     calculate_date_year_range(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE
     ) == ("25 January 614 BC", "26 January 570 BC")
 
 Forty-four years apart, and the day of year moves by one. The paper's
