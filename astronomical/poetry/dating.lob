@@ -21,7 +21,8 @@ at Myteline. The poem's other astronomical detail, the setting Moon, is
 not used as a constraint here either, following the paper. (See
 ##Moon Phase.)
 
-Our analysis reproduces the 2016 paper with some caveats. We reproduce the
+Our analysis reproduces the 2016 paper, but also shows the result is sensitive
+to varying parameters which are necessarily estimates. We reproduce the
 calculated date of 25 January 570 BC, but only when refraction adjustment
 is turned off, unlike the paper. With refraction adjustment, we get the
 26th.
@@ -31,17 +32,29 @@ horizon at Myteline. This gives a date of 23 January, which varies from
 the paper, which comments that horizon adjustment does not change the
 result.
 
+Finally we check how sensitive the calculation is to varying estimated, ancient
+locations and dates within a range, in ##Plausible Range. Using ranges, we 
+find that an estimated January-February season is quite stable throughout 
+Sappho's adult life. This is a more useful guide than a single date considering
+the basis for some of these parameters, e.g., midnight in a technological era
+without precise clocks. We test a range of values around the time of night and 
+the elevation of Myteline. Whether it was Sappho or another poet, and whether 
+she was sixteen or sixty, we can imagine her in the sharp Mediterranean winter 
+air, looking at the stars, alone, remembering.
+
+
 
 ##Astronomical Calculation Overview
 
     def calculate_date(location,time_range,astro_ref,horizon_adjust=0,
-                        refraction=True) -> HistoricalDate :
+                        refraction=True,midnight_offset_hours=0.0) \
+            -> HistoricalDate :
         reference = time_range[1]
         star = _star(astro_ref)
         setting_altitude = 3.0 + horizon_adjust
         start = HistoricalDate(reference.year, 1, 1, reference.era)
         for candidate in _dates_from(start, 120):
-            time = _local_midnight(candidate, location)
+            time = _local_midnight(candidate, location, midnight_offset_hours)
             altitude = _altitude_degrees(star, location, time, refraction)
             if altitude <= setting_altitude:
                 return candidate
@@ -159,12 +172,16 @@ Gregorian reform is over two thousand years in the future at this date.
 "Midnight on date D" names the night of D, which ends at local 00:00 the
 following calendar day — not the midnight that opens D — so the search
 tests the *following* day's Julian-day-zero instant for each candidate.
+That instant itself is only as precise as the water clock the paper
+assumes the poem's midnight was read from (see ##Plausible Range), so an
+`hour_offset` lets that clock be run fast or slow.
 
-    def _local_midnight(historical_date, location):
+    def _local_midnight(historical_date, location, hour_offset=0.0):
         _, longitude = location
         offset_hours = longitude / 15.0
         return _timescale().ut1_jd(
-            _julian_day(historical_date) + 1 - offset_hours / 24.0)
+            _julian_day(historical_date) + 1
+            - offset_hours / 24.0 + hour_offset / 24.0)
 
 
 ##Refraction
@@ -192,8 +209,8 @@ The 2016 paper does not take into account that stars set in the west, and
 Mt Olympus of Lesbos is to the west of Myteline. So the horizon is higher,
 and the Pleiades would set earlier. `horizon_adjust` returns the angle by
 which the effective horizon is raised, seen from `from_location` towards
-the peak at `to_location`, given the peak's height and great-circle
-distance.
+the peak at `to_location`, net of the observer's own elevation, given the
+peak's height and great-circle distance.
 
     EARTH_RADIUS_METRES = 6371000.0
 
@@ -204,11 +221,11 @@ distance.
         h = sin(d_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(d_lon / 2) ** 2
         return 2 * EARTH_RADIUS_METRES * asin(sqrt(h))
 
-    def horizon_adjust(from_location,to_location) -> float:
+    def horizon_adjust(from_location,to_location,from_elevation=0) -> float:
         to_latitude, to_longitude, to_elevation = to_location
         distance = _great_circle_metres(
             from_location, (to_latitude, to_longitude))
-        return degrees(atan2(to_elevation, distance))
+        return degrees(atan2(to_elevation - from_elevation, distance))
 
 
 Mt Olympus of Lesbos is the island's highest peak, given here as latitude,
@@ -236,13 +253,96 @@ sensitive this search is to sub-degree changes in the threshold.
 With the horizon raised, refraction no longer changes the day: both
 variants land on 23 January, unlike the flat-horizon case above.
 
-The tests appendix below only holds assertions, not definitions, so these
-synthetic points — not the real Mytilene/Lesbos figures, chosen so the
-expected angles come out exact — have to live here instead.
 
-    HERE = (0.0, 0.0)
-    NEAR = (0.0, 1.0, 1000.0)
-    FAR = (0.0, 2.0, 1000.0)
+## Plausible Range
+
+`horizon_adjust` above assumed Mytilene itself sits at sea level, but the
+paper places it on the range's lower eastern slopes, "at an altitude
+between 200m and 900m." Rather than pick one figure, `calculate_date_range`
+sweeps both ends and reports the earliest and latest result — a lower
+Mytilene means a bigger net dip to the peak, hence an earlier date; a
+higher Mytilene means a smaller dip and a later one. Refraction and the
+horizon adjustment stay on throughout.
+
+    MYTELINE_ELEVATION_RANGE = (200, 900)
+
+    def calculate_date_range(location, time_range, astro_ref, peak,
+                              elevation_range):
+        return tuple(
+            calculate_date(
+                location, time_range, astro_ref,
+                horizon_adjust(location, peak, from_elevation=elevation))
+            for elevation in elevation_range)
+
+~example
+    calculate_date_range(
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE,
+        MT_OLYMPUS_OF_LESBOS, MYTELINE_ELEVATION_RANGE
+    ) == ("23 January 570 BC", "25 January 570 BC")
+
+Even holding refraction and the horizon model fixed, the single "true"
+date the paper reports turns out to be one point in a small range driven
+by an input the paper itself only bounds loosely, not a solved constant.
+
+"Midnight" is a second such input, and a shakier one: the paper admits it
+could not establish what kind of time-keeping device was used on Lesbos
+around 570 BC, only assuming a clepsydra. An outflow water clock is not a
+precise instrument, so treating its "midnight" as exact to the minute
+assumes more precision than the source can support. Unlike the elevation
+bound above, the paper gives no figure for this, so a two-hour window —
+plus or minus an hour — here is our own placeholder judgement call, not
+a sourced number.
+
+    MIDNIGHT_UNCERTAINTY_HOURS = 1.0
+    MIDNIGHT_OFFSET_RANGE = (-MIDNIGHT_UNCERTAINTY_HOURS,
+                              MIDNIGHT_UNCERTAINTY_HOURS)
+
+    def calculate_date_midnight_range(location, time_range, astro_ref,
+                                       offset_range):
+        return tuple(
+            calculate_date(location, time_range, astro_ref,
+                           midnight_offset_hours=offset)
+            for offset in offset_range)
+
+~example
+    calculate_date_midnight_range(
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE, MIDNIGHT_OFFSET_RANGE
+    ) == ("10 February 570 BC", "10 January 570 BC")
+
+Alcyone's local setting time drifts only a few minutes earlier each night
+— the ordinary sidereal/solar mismatch — so the search's date-per-night
+resolution is coarse: a plausible hour of clock error either way is
+enough to walk the result across an entire calendar month. That dwarfs
+the elevation range above, and it means the day-level precision the
+paper reports rests on assuming a water clock far more exact than the
+paper's own note about it can support.
+
+The paper's own note 7 makes a different, checkable claim: that which
+year of Sappho's adult life you assume barely matters, since precession
+moves Alcyone too slowly over a few decades to shift the result. Unlike
+elevation and midnight precision, this isn't a source of fragility we are
+introducing — it's the paper's own robustness claim, tested here by
+running `calculate_date` at both ends of #SAPPHO_ADULT_LIFE, 614 and
+570 BC, forty-four years apart, holding everything else fixed.
+
+    def calculate_date_year_range(location, time_range, astro_ref):
+        start_year, end_year = time_range
+        return (
+            calculate_date(location, (start_year, start_year), astro_ref),
+            calculate_date(location, (end_year, end_year), astro_ref),
+        )
+
+~example
+    calculate_date_year_range(
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE
+    ) == ("25 January 614 BC", "26 January 570 BC")
+
+Forty-four years apart, and the day of year moves by one. The paper's
+insensitivity claim holds up here — a single day across her entire adult
+life is indeed "no appreciable difference" — in sharp contrast to
+elevation and midnight precision, which move the result by days and
+weeks respectively for inputs the paper barely constrains at all.
+
 
 
 ---
@@ -282,7 +382,13 @@ This project was started with a hand authored high level specification in
 dating.lob, two function signatures with empty implementations for
 calculate_date() and horizon_adjust(), and two ~example tests. The code
 compiled and linted but the unit tests failed, in a consciously TDD style.
-A coding agent was then introduced to implement the project.
+A coding agent (Claude Code with Sonnet 5) was then introduced to implement the
+project. The project grew with mostly arms-length dialogue around the
+implementation, inspecting the impact of varying parameters was added through
+prompting after the first running version. Most changes were performed by the
+coding agent, though there were also manual edits for structure, style and
+clarity. The project took about a day to implement, multi-tasking with other
+work.
 
 
 ## Bibliography
@@ -297,6 +403,18 @@ https://www.gutenberg.org/files/57390/57390-h/57390-h.htm
 Wikipedia contributors. (2025, February 2). Midnight poem. In Wikipedia,
 The Free Encyclopedia. Retrieved 06:06, August 11, 2026, from
 https://en.wikipedia.org/w/index.php?title=Midnight_poem&oldid=1273552931
+
+
+## Test Fixtures
+
+The tests appendix below only holds assertions, not definitions, so these
+synthetic points — not the real Mytilene/Lesbos figures, chosen so the
+expected angles come out exact — live here instead.
+
+    HERE = (0.0, 0.0)
+    NEAR = (0.0, 1.0, 1000.0)
+    FAR = (0.0, 2.0, 1000.0)
+
 
 
 #Tests
