@@ -1,0 +1,94 @@
+# Historical Date
+
+A calendar date that may fall before or after the epoch, expressed with an
+explicit era rather than a signed year. It prints and compares the way a
+reader would write it, e.g. `25 January 570 BC`, while still converting
+cleanly to astronomical year numbering (`1 BC` is year `0`, `2 BC` is year
+`-1`, and so on) wherever arithmetic against an ephemeris is needed.
+
+    from dataclasses import dataclass
+    from typing import Literal
+
+    MONTH_NAMES = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ]
+
+    @dataclass(frozen=True)
+    class HistoricalDate:
+        year: int
+        month: int
+        day: int
+        era: Literal["BC", "AD"] = "AD"
+
+        def __str__(self) -> str:
+            month_name = MONTH_NAMES[self.month - 1]
+            return f"{self.day} {month_name} {self.year} {self.era}"
+
+        __repr__ = __str__
+
+        def __eq__(self, other) -> bool:
+            if isinstance(other, str):
+                return str(self) == other
+            if isinstance(other, HistoricalDate):
+                return (self.year, self.month, self.day, self.era) == \
+                       (other.year, other.month, other.day, other.era)
+            return NotImplemented
+
+        def __hash__(self) -> int:
+            return hash((self.year, self.month, self.day, self.era))
+
+        @property
+        def astronomical_year(self) -> int:
+            return 1 - self.year if self.era == "BC" else self.year
+
+~property equal_dates_hash_and_stringify_alike
+    @given(
+        year=st.integers(min_value=1, max_value=3000),
+        month=st.integers(min_value=1, max_value=12),
+        day=st.integers(min_value=1, max_value=28),
+        era=st.sampled_from(["AD", "BC"]),
+    )
+    def _(year, month, day, era):
+        first = HistoricalDate(year, month, day, era)
+        second = HistoricalDate(year, month, day, era)
+        assert first == second
+        assert hash(first) == hash(second)
+        assert first == str(first)
+
+~property astronomical_year_tracks_calendar_year_within_an_era
+    @given(
+        first_year=st.integers(min_value=1, max_value=3000),
+        second_year=st.integers(min_value=1, max_value=3000),
+        era=st.sampled_from(["AD", "BC"]),
+    )
+    def _(first_year, second_year, era):
+        first = HistoricalDate(first_year, 1, 1, era).astronomical_year
+        second = HistoricalDate(second_year, 1, 1, era).astronomical_year
+        later_calendar_year = first_year < second_year
+        if era == "AD":
+            assert later_calendar_year == (first < second)
+        else:
+            assert later_calendar_year == (first > second)
+
+~example
+    str(HistoricalDate(570, 1, 25, "BC")) == "25 January 570 BC"
+    HistoricalDate(570, 1, 25, "BC") == "25 January 570 BC"
+    HistoricalDate(1, 1, 1, "BC").astronomical_year == 0
+    HistoricalDate(570, 1, 25, "BC").astronomical_year == -569
+
+---
+
+#Tests
+
+##readable rendering
+    str(HistoricalDate(1, 3, 5, "AD")) == "5 March 1 AD"
+    str(HistoricalDate(614, 6, 30, "BC")) == "30 June 614 BC"
+
+##equality across eras
+    HistoricalDate(570, 1, 25, "BC") != HistoricalDate(570, 1, 25, "AD")
+    HistoricalDate(570, 1, 25, "BC") == HistoricalDate(570, 1, 25, "BC")
+
+##astronomical year conversion
+    HistoricalDate(1, 1, 1, "AD").astronomical_year == 1
+    HistoricalDate(2, 1, 1, "BC").astronomical_year == -1

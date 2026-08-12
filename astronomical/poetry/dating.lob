@@ -5,93 +5,327 @@ The Pleiades are gone;
 Half the long night is spent, and yet
 I lie alone.
 
-This is the John Merivale translation of fragment 58 by Sappho, often known as the Midnight Poem. In 2016, scholars combined the information in the poem, the location of the poet, and astronomical calculations to provide an estimate of when the poem was written (Cuntz et al, 2016). That particular estimate was 570 BC. This project reproduces the calculation using current data science tools. It also explores how sensitive the result is to parameter selection, the details of which are the result of deep scholarship. Indeed, scholars point out the poem may not even be by Sappho. (See ##Authorship Debate.)
+This is the John Merivale translation of fragment 58 by Sappho, often known
+as the Midnight Poem. In 2016, scholars combined the information in the
+poem, the location of the poet, and astronomical calculations to provide an
+estimate of when the poem was written (Cuntz et al, 2016). That particular
+estimate was 570 BC. This project reproduces the calculation using current
+data science tools. It also explores how sensitive the result is to
+parameter selection, the details of which are the result of deep
+scholarship. Indeed, scholars point out the poem may not even be by Sappho.
+(See ##Authorship Debate.)
 
-The calculation assumes the report of seeing the constellation at a particular time is factual, rather than fictional. It also places Sappho at Myteline.
+The calculation assumes the report of seeing the constellation at a
+particular time is factual, rather than fictional. It also places Sappho
+at Myteline. The poem's other astronomical detail, the setting Moon, is
+not used as a constraint here either, following the paper. (See
+##Moon Phase.)
+
+Our analysis reproduces the 2016 paper with some caveats. We reproduce the
+calculated date of 25 January 570 BC, but only when refraction adjustment
+is turned off, unlike the paper. With refraction adjustment, we get the
+26th.
+
+We also perform a calculation adjusting for the height of the west
+horizon at Myteline. This gives a date of 23 January, which varies from
+the paper, which comments that horizon adjustment does not change the
+result.
 
 
-    def calculate_date(location,time_range,astro_ref,horizon_adjust=0) \
-            -> tuple : 
-        # return (-570,1,27)
+##Astronomical Calculation Overview
+
+    def calculate_date(location,time_range,astro_ref,horizon_adjust=0,
+                        refraction=True) -> HistoricalDate :
+        reference = time_range[1]
+        star = _star(astro_ref)
+        setting_altitude = 3.0 + horizon_adjust
+        start = HistoricalDate(reference.year, 1, 1, reference.era)
+        for candidate in _dates_from(start, 120):
+            time = _local_midnight(candidate, location)
+            altitude = _altitude_degrees(star, location, time, refraction)
+            if altitude <= setting_altitude:
+                return candidate
         return None
-        # TODO: implement
 
-This is the result from the 2016 paper.
+`calculate_date` follows the paper's search: starting from New Year's Day of
+the reference year, walk forward day by day and return the first date on
+which the reference star has already set — altitude at or below 3 degrees,
+raised by any ##Horizon Adjustment — by local midnight.
+
+The paper's own published figure comes from a calculation that includes
+atmospheric refraction (see ##Refraction), which is the
+default here too. But the result is sensitive enough to sub-degree
+refraction modelling that our refraction-inclusive figure lands a day
+later than theirs; disabling refraction happens to reproduce their
+published date exactly, which we take as a coincidence of where the
+threshold falls relative to a day boundary, not as evidence refraction
+should be off.
 
 ~example
-    (-570,1,27) == calculate_date(MYTELINE,SAPPHO_ADULT_LIFE,PLEIADES_ALCOYNE)
+    calculate_date(
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE
+    ) == "26 January 570 BC"
+
+This is the result from the 2016 paper — reproduced by turning refraction
+off, which is not what the paper itself did.
+
+~example
+    calculate_date(
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE, refraction=False
+    ) == "25 January 570 BC"
 
 
-Sappho lived from 630 to 570 BC.
+Sappho lived from 630 to 570 BC; the poem is dated within her adult life,
+from age sixteen to her death.
 
-    SAPPHO_ADULT_LIFE = (-630+16,-570) 
-    # TODO Make an astronomical date with AD/BC inputs
+    SAPPHO_ADULT_LIFE = (
+        HistoricalDate(614, 1, 1, "BC"), HistoricalDate(570, 1, 1, "BC"))
 
-The location of Myteline and the Pleiades.
+The location of Myteline, and the Hipparcos catalog number for Alcyone.
 
     MYTELINE =  (39.11, 26.55)
-    # TODO Make an astronomical date with AD/BC inputs
-    PLEIADES_ALCOYNE = None # TODO Astronomical location HIP 17702
+    PLEIADES_ALCOYNE = 17702
 
 
 
-## Astronomical Calculation
+## Calculation Details
 
-The astronomical calculation use skyfield to interpolate. We choose de406 to cover the range 3000 BC - 3000 AD.
+The astronomical calculation uses skyfield to interpolate. We choose de406,
+a JPL ephemeris covering 3000 BC - 3000 AD, and the Hipparcos catalog for
+star positions, since precession over two and a half millennia is too large
+to ignore.
+
+Local time on Lesbos is taken as a fixed offset from UT based on Mytilene's
+longitude, following the paper's own convention rather than a modern time
+zone. Dates are read against the proleptic Julian calendar, the calendar in
+use at the time.
+
+    EPHEMERIS_DIRECTORY = "var/ephemeris"
+    JULIAN_MONTH_LENGTHS = [31,28,31,30,31,30,31,31,30,31,30,31]
+
+The ephemeris, timescale, and star catalog are each expensive to load, so
+each is fetched at most once and cached for the life of the process.
+
+    @lru_cache(maxsize=1)
+    def _loader():
+        return Loader(EPHEMERIS_DIRECTORY)
+
+    @lru_cache(maxsize=1)
+    def _earth():
+        return _loader()('de406.bsp')['earth']
+
+    @lru_cache(maxsize=1)
+    def _timescale():
+        return _loader().timescale()
+
+    @lru_cache(maxsize=1)
+    def _hipparcos_catalog():
+        with _loader().open(hipparcos.URL) as f:
+            return hipparcos.load_dataframe(f)
+
+    @cache
+    def _star(hip_number):
+        return Star.from_dataframe(_hipparcos_catalog().loc[hip_number])
+
+The search in `calculate_date` walks the reference year day by day, so it
+needs to step a `HistoricalDate` forward and convert each one to a Julian
+day number. Both need the proleptic Julian calendar's leap rule, since the
+Gregorian reform is over two thousand years in the future at this date.
+
+    def _is_julian_leap_year(astronomical_year):
+        return astronomical_year % 4 == 0
+
+    def _days_in_month(astronomical_year, month):
+        if month == 2 and _is_julian_leap_year(astronomical_year):
+            return 29
+        return JULIAN_MONTH_LENGTHS[month - 1]
+
+    def _dates_from(start, count):
+        year, month, day, era = start.year, start.month, start.day, start.era
+        for _ in range(count):
+            yield HistoricalDate(year, month, day, era)
+            day += 1
+            if day > _days_in_month(start.astronomical_year, month):
+                day, month = 1, month + 1
+
+    def _julian_day(historical_date, hour=0.0):
+        year, month, day = historical_date.astronomical_year, \
+            historical_date.month, historical_date.day
+        if month <= 2:
+            year, month = year - 1, month + 12
+        return (int(365.25 * (year + 4716)) + int(30.6001 * (month + 1))
+                + day + hour / 24 - 1524.5)
+
+"Midnight on date D" names the night of D, which ends at local 00:00 the
+following calendar day — not the midnight that opens D — so the search
+tests the *following* day's Julian-day-zero instant for each candidate.
+
+    def _local_midnight(historical_date, location):
+        _, longitude = location
+        offset_hours = longitude / 15.0
+        return _timescale().ut1_jd(
+            _julian_day(historical_date) + 1 - offset_hours / 24.0)
 
 
+##Refraction
 
+The paper's own numeric result includes atmospheric refraction — its note
+8 attributes a mismatch between a screenshot and a computed number to
+exactly this — so it is on here by default, and can be switched off to
+compare against an unrefracted altitude.
+
+    def _altitude_degrees(star, location, time, refraction=True):
+        latitude, longitude = location
+        observer = _earth() + wgs84.latlon(latitude, longitude)
+        apparent = observer.at(time).observe(star).apparent()
+        if refraction:
+            altitude, _, _ = apparent.altaz(
+                temperature_C="standard", pressure_mbar="standard")
+        else:
+            altitude, _, _ = apparent.altaz()
+        return altitude.degrees
 
 
 ## Horizon Adjustment
 
-The 2016 paper does not take into account that stars set in the west, and Mt Olympus of Lesbos is to the west of Myteline. So the horizon is higher, and the Pleiades would set earlier.
+The 2016 paper does not take into account that stars set in the west, and
+Mt Olympus of Lesbos is to the west of Myteline. So the horizon is higher,
+and the Pleiades would set earlier. `horizon_adjust` returns the angle by
+which the effective horizon is raised, seen from `from_location` towards
+the peak at `to_location`, given the peak's height and great-circle
+distance.
+
+    EARTH_RADIUS_METRES = 6371000.0
+
+    def _great_circle_metres(from_location, to_location):
+        lat1, lon1 = radians(from_location[0]), radians(from_location[1])
+        lat2, lon2 = radians(to_location[0]), radians(to_location[1])
+        d_lat, d_lon = lat2 - lat1, lon2 - lon1
+        h = sin(d_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(d_lon / 2) ** 2
+        return 2 * EARTH_RADIUS_METRES * asin(sqrt(h))
 
     def horizon_adjust(from_location,to_location) -> float:
-        return None
+        to_latitude, to_longitude, to_elevation = to_location
+        distance = _great_circle_metres(
+            from_location, (to_latitude, to_longitude))
+        return degrees(atan2(to_elevation, distance))
 
 
-    MT_OLYMPUS_OF_LESBOS = None     # lat/long TODO
+Mt Olympus of Lesbos is the island's highest peak, given here as latitude,
+longitude, and its height in metres.
 
+    MT_OLYMPUS_OF_LESBOS = (39.28, 26.33, 968)
+
+We do not know the exact date of the paper's horizon-adjusted calculation.
+The paper suggests it does not change the outcome, but our model of the
+horizon disagrees. See ##Astronomical Calculation Overview for just how
+sensitive this search is to sub-degree changes in the threshold.
 
 ~example
-    563 == calculate_date(MYTELINE,SAPPHO_ADULT_LIFE,PLEIADES_ALCOYNE,
-                        horizon_adjust(MYTELINE,MT_OLYMPUS_OF_LESBOS)  )
- 
- 
+    calculate_date(
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE,
+        horizon_adjust(MYTELINE, MT_OLYMPUS_OF_LESBOS)
+    ) == "23 January 570 BC"
 
+~example
+    calculate_date(
+        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCOYNE,
+        horizon_adjust(MYTELINE, MT_OLYMPUS_OF_LESBOS), refraction=False
+    ) == "23 January 570 BC"
 
+With the horizon raised, refraction no longer changes the day: both
+variants land on 23 January, unlike the flat-horizon case above.
+
+The tests appendix below only holds assertions, not definitions, so these
+synthetic points — not the real Mytilene/Lesbos figures, chosen so the
+expected angles come out exact — have to live here instead.
+
+    HERE = (0.0, 0.0)
+    NEAR = (0.0, 1.0, 1000.0)
+    FAR = (0.0, 2.0, 1000.0)
 
 
 ---
 
 #Appendix
 
+## Moon Phase
+
+The poem also has the Moon set, but — as the paper notes — this cannot be
+used to further constrain the date, and `calculate_date` does not model
+the Moon at all. A true new moon is excluded by construction even so: the
+Moon trails the Sun eastward by about 12.2° a day, roughly 49 minutes of
+extra moonset lag per day of lunar age. At new moon that lag is near zero,
+so the Moon would set with the Sun — but the poem has it setting with
+"half the long night... spent," which needs several hours of lag, and so
+several days of lunar age. Herschberg and Mebius's (1990) independent
+estimate of a 2–6 day crescent is consistent with this reading, though it
+is an argument from the poem's wording rather than a computed constraint.
+
+
 ## Authorship Debate
 
-This fragment is attested in antique sources but only attributed to Sappho during the Renaissance by Arsenius Apostolius. 
+This fragment is attested in antique sources but only attributed to Sappho
+during the Renaissance by Arsenius Apostolius.
 
+
+## Greek Text of the Poem
+
+Δέδυκε μὲν ἀ σελάννα
+καὶ Πληΐαδες, μέσαι δέ
+νύκτες, πάρα δ' ἔρχετ' ὤρα,
+ἔγω δὲ μόνα κατεύδω.
 
 ## Development Process Notes
 
-This project was started with a hand authored high level specification in dating.lob, two function signatures with empty implementations for calculate_date() and horizon_adjust(), and two ~example tests. The code compiled and linted but the unit tests failed, in a consciously TDD style. A coding agent was then introduced to implement the project.
+This project was started with a hand authored high level specification in
+dating.lob, two function signatures with empty implementations for
+calculate_date() and horizon_adjust(), and two ~example tests. The code
+compiled and linted but the unit tests failed, in a consciously TDD style.
+A coding agent was then introduced to implement the project.
 
 
-# References
+## Bibliography
 
-    # imports go here
-    # skyfield
+Cuntz, M., Gurdemir, L., & George, M. (2016). Seasonal Dating of Sappho’s
+‘Midnight Poem’ Revisited. Journal of Astronomical History and Heritage,
+19(1), 18-24.
+
+Wharton, H. (2018). Sappho. Project Gutenberg,
+https://www.gutenberg.org/files/57390/57390-h/57390-h.htm
+
+Wikipedia contributors. (2025, February 2). Midnight poem. In Wikipedia,
+The Free Encyclopedia. Retrieved 06:06, August 11, 2026, from
+https://en.wikipedia.org/w/index.php?title=Midnight_poem&oldid=1273552931
 
 
+#Tests
 
-# Bibliography
+Geometry checks for `horizon_adjust`, using the synthetic points defined
+in ##Horizon Adjustment.
+
+##a peak directly overhead raises the horizon to the zenith
+    horizon_adjust(HERE, (0.0, 0.0, 1000.0)) == 90.0
+
+##a peak level with the observer raises the horizon not at all
+    horizon_adjust(HERE, (0.0, 1.0, 0.0)) == 0.0
+
+##a closer peak of the same height raises the horizon more steeply
+    horizon_adjust(HERE, NEAR) > horizon_adjust(HERE, FAR)
+
+##doubling the distance approximately halves the angle, at this scale
+    abs(horizon_adjust(HERE, NEAR) - 2 * horizon_adjust(HERE, FAR)) < 0.01
+
+##one degree of latitude matches the standard 111.2 km approximation
+    abs(_great_circle_metres(HERE, (1.0, 0.0)) - 111194.9) < 1.0
 
 
+#References
 
-Cuntz, M., Gurdemir, L., & George, M. (2016). Seasonal Dating of Sappho’s ‘Midnight Poem’ Revisited. Journal of Astronomical History and Heritage, 19(1), 18-24.
-
-Wharton, H. (2018). Sappho. Project Gutenberg, https://www.gutenberg.org/files/57390/57390-h/57390-h.htm
-
-Wikipedia contributors. (2025, February 2). Midnight poem. In Wikipedia, The Free Encyclopedia. Retrieved 06:06, August 11, 2026, from https://en.wikipedia.org/w/index.php?title=Midnight_poem&oldid=1273552931
+    #Historical Date
+    from functools import cache, lru_cache
+    from math import asin, atan2, cos, degrees, radians, sin, sqrt
+    from skyfield.api import Loader, Star, wgs84
+    from skyfield.data import hipparcos
 
 
