@@ -7,4 +7,10 @@
 # Vim
 *.swp
 
+# Virtual environments
+plei/
+
+# Ephemeris data (large, downloaded on demand)
+var/ephemeris/
+
 
