@@ -1,6 +1,6 @@
 [project]
 name = "pleiades"
-version = "0.1.0"
+version = "1.0.0"
 description = "Astronomical dating of Sappho's Midnight Poem, in notlob"
 requires-python = ">=3.12"
 dependencies = [
