@@ -27,44 +27,59 @@ calculated date of 25 January 570 BC, but only when refraction adjustment
 is turned off, unlike the paper. With refraction adjustment, we get the
 26th.
 
-We also perform a calculation adjusting for the height of the west
-horizon at Mytilene. This gives a date of 23 January, which varies from
-the paper, which comments that horizon adjustment does not change the
-result.
+We also perform a calculation adjusting for the real horizon at Mytilene, using
+terrain elevation data. This gives a date of 21 January. This corroborates the 
+paper's claim that elevation will move the date earlier, with more precision, 
+showing the calculation. (See ##Horizon Adjustment.)
 
 Finally we check how sensitive the calculation is to varying estimated, ancient
-locations and dates within a range, in ##Plausible Range. Using ranges, we 
-find that an estimated January-February season is quite stable throughout 
-Sappho's adult life. This is a narrower time range than the January-April range
+locations and dates within a range, in ##Plausible Range. We find that an 
+estimated January-February season is quite stable throughout Sappho's adult 
+life. This is a narrower time range than the January-April range
 in the paper. A range is a more useful guide than a single date considering
 the basis for some of these parameters, e.g., midnight in a technological era
-without precise clocks. We test a range of values around the time of night and 
-the elevation of Mytilene. Whether it was Sappho or another poet, and whether 
-she was sixteen or sixty, we can imagine her in the sharp Mediterranean winter 
-air, looking at the stars, alone, remembering.
+without precise clocks. We test a range of values around the time of night and
+how sharply the local horizon varies near Alcyone's setting direction. Whether
+it was Sappho or another poet, and whether she was sixteen or sixty, we can
+imagine her in the sharp Mediterranean winter air, looking at the stars,
+alone, remembering.
 
 
 
 ##Astronomical Calculation Overview
 
-    def calculate_date(location,time_range,astro_ref,horizon_adjust=0,
+The paper derives its 3 degree setting threshold from atmospheric
+extinction, not from the horizon itself (§4): at an altitude of only 3°,
+Alcyone — normally magnitude 2.87 — dims to just past sixth magnitude, the
+naked-eye visibility limit. Extinction is a function of the star's true
+altitude above the astronomical horizontal; it has nothing to do with
+terrain. Terrain occlusion is a separate, independent cutoff — the star is
+also invisible once it drops below whatever physically blocks the view.
+The star is lost to whichever cutoff bites first, so the two combine with
+`max`, not by adding: the extinction floor stays fixed at
+#NAKED_EYE_LIMIT_ALTITUDE_DEGREES regardless of how high the terrain is.
+
+    def calculate_date(location,time_range,astro_ref,use_terrain_horizon=False,
                         refraction=True,midnight_offset_hours=0.0) \
             -> HistoricalDate :
         reference = time_range[1]
         star = _star(astro_ref)
-        setting_altitude = 3.0 + horizon_adjust
         start = HistoricalDate(reference.year, 1, 1, reference.era)
         for candidate in _dates_from(start, 120):
             time = _local_midnight(candidate, location, midnight_offset_hours)
-            altitude = _altitude_degrees(star, location, time, refraction)
-            if altitude <= setting_altitude:
+            altitude, azimuth = _altaz_degrees(star, location, time, refraction)
+            horizon = (_horizon_elevation(location, azimuth)
+                       if use_terrain_horizon else 0.0)
+            threshold = max(NAKED_EYE_LIMIT_ALTITUDE_DEGREES, horizon)
+            if altitude <= threshold:
                 return candidate
         return None
 
 `calculate_date` follows the paper's search: starting from New Year's Day of
 the reference year, walk forward day by day and return the first date on
-which the reference star has already set — altitude at or below 3 degrees,
-raised by any ##Horizon Adjustment — by local midnight.
+which the reference star has already set — altitude at or below the
+extinction limit, or below any raised ##Horizon Adjustment, whichever is
+higher — by local midnight.
 
 The paper's own published figure comes from a calculation that includes
 atmospheric refraction (see ##Refraction), which is the
@@ -95,6 +110,8 @@ from age sixteen to her death.
     SAPPHO_ADULT_LIFE = (
         HistoricalDate(614, 1, 1, "BC"), HistoricalDate(570, 1, 1, "BC"))
 
+    NAKED_EYE_LIMIT_ALTITUDE_DEGREES = 3.0
+
 The location of Mytilene, and the Hipparcos catalog number for Alcyone.
 
     MYTILENE =  (39.11, 26.55)
@@ -111,8 +128,8 @@ to ignore.
 
 Local time on Lesbos is taken as a fixed offset from UT based on Mytilene's
 longitude, following the paper's own convention rather than a modern time
-zone. Dates are read against the proleptic Julian calendar, the calendar in
-use at the time.
+zone. Dates are read against the proleptic Julian calendar, the conventional 
+calendar used for this era.
 
     EPHEMERIS_DIRECTORY = "var/ephemeris"
     JULIAN_MONTH_LENGTHS = [31,28,31,30,31,30,31,31,30,31,30,31]
@@ -192,98 +209,125 @@ The paper's own numeric result includes atmospheric refraction — its note
 exactly this — so it is on here by default, and can be switched off to
 compare against an unrefracted altitude.
 
-    def _altitude_degrees(star, location, time, refraction=True):
+    def _altaz_degrees(star, location, time, refraction=True):
         latitude, longitude = location
         observer = _earth() + wgs84.latlon(latitude, longitude)
         apparent = observer.at(time).observe(star).apparent()
         if refraction:
-            altitude, _, _ = apparent.altaz(
+            altitude, azimuth, _ = apparent.altaz(
                 temperature_C="standard", pressure_mbar="standard")
         else:
-            altitude, _, _ = apparent.altaz()
-        return altitude.degrees
+            altitude, azimuth, _ = apparent.altaz()
+        return altitude.degrees, azimuth.degrees
 
 
 ## Horizon Adjustment
 
-The 2016 paper does not take into account that stars set in the west, and
-Mt Olympus of Lesbos is to the west of Mytilene. So the horizon is higher,
-and the Pleiades would set earlier. `horizon_adjust` returns the angle by
-which the effective horizon is raised, seen from `from_location` towards
-the peak at `to_location`, net of the observer's own elevation, given the
-peak's height and great-circle distance.
+The 2016 paper assumes a theoretical, sea-level horizon in every direction,
+while noting sensitivity to elevation. Lesbos is a hilly island, and Mytilene 
+sits in view of real terrain — not one named peak in one fixed direction, but 
+whatever ridge happens to lie along Alcyone's own setting bearing on a given 
+night, which shifts slightly night to night. `_horizon_elevation` looks up the 
+true horizon height at a given azimuth, from a real elevation-by-azimuth 
+profile for Mytilene's coordinates, fetched from the PVGIS horizon tool (the 
+Joint Research Centre's `re.jrc.ec.europa.eu` service) rather than assumed 
+from one peak's geometry.
 
-    EARTH_RADIUS_METRES = 6371000.0
+    HORIZON_DIRECTORY = "var/horizon"
 
-    def _great_circle_metres(from_location, to_location):
-        lat1, lon1 = radians(from_location[0]), radians(from_location[1])
-        lat2, lon2 = radians(to_location[0]), radians(to_location[1])
-        d_lat, d_lon = lat2 - lat1, lon2 - lon1
-        h = sin(d_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(d_lon / 2) ** 2
-        return 2 * EARTH_RADIUS_METRES * asin(sqrt(h))
+    def _horizon_cache_file(location):
+        latitude, longitude = location
+        Path(HORIZON_DIRECTORY).mkdir(parents=True, exist_ok=True)
+        return Path(HORIZON_DIRECTORY) / f"{latitude:.4f}_{longitude:.4f}.csv"
 
-    def horizon_adjust(from_location,to_location,from_elevation=0) -> float:
-        to_latitude, to_longitude, to_elevation = to_location
-        distance = _great_circle_metres(
-            from_location, (to_latitude, to_longitude))
-        return degrees(atan2(to_elevation - from_elevation, distance))
+    @cache
+    def _horizon_profile(location):
+        cache_file = _horizon_cache_file(location)
+        if cache_file.exists():
+            return pd.read_csv(cache_file, index_col=0).iloc[:, 0]
+        profile, _ = get_pvgis_horizon(*location)
+        profile.to_csv(cache_file)
+        return profile
 
+    def _horizon_elevation(location, azimuth_degrees):
+        profile = _horizon_profile(location)
+        return float(np.interp(
+            azimuth_degrees % 360, profile.index.to_numpy(),
+            profile.to_numpy(), period=360))
 
-Mt Olympus of Lesbos is the island's highest peak, given here as latitude,
-longitude, and its height in metres.
+Like the ephemeris and star catalog above, the profile is fetched once and
+cached to disk (under `var/horizon`), so repeated runs — and repeated
+lookups within one run — don't repeat the network call.
 
-    MT_OLYMPUS_OF_LESBOS = (39.28, 26.33, 968)
-
-We do not know the exact date of the paper's horizon-adjusted calculation.
-The paper suggests it does not change the outcome, but our model of the
-horizon disagrees. See ##Astronomical Calculation Overview for just how
-sensitive this search is to sub-degree changes in the threshold.
+`calculate_date`'s `use_terrain_horizon` flag, above, switches the setting
+threshold from a flat #NAKED_EYE_LIMIT_ALTITUDE_DEGREES to
+`max(NAKED_EYE_LIMIT_ALTITUDE_DEGREES, _horizon_elevation(location,
+azimuth))`, using each candidate night's own azimuth rather than a single
+fixed number. We do not know the exact date of the paper's own
+horizon-adjusted calculation.
 
 ~example
     calculate_date(
         MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
-        horizon_adjust(MYTILENE, MT_OLYMPUS_OF_LESBOS)
-    ) == "23 January 570 BC"
+        use_terrain_horizon=True
+    ) == "21 January 570 BC"
 
 ~example
     calculate_date(
         MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
-        horizon_adjust(MYTILENE, MT_OLYMPUS_OF_LESBOS), refraction=False
-    ) == "23 January 570 BC"
+        use_terrain_horizon=True, refraction=False
+    ) == "21 January 570 BC"
 
-With the horizon raised, refraction no longer changes the day: both
-variants land on 23 January, unlike the flat-horizon case above.
+With the horizon raised this far, refraction no longer changes the day:
+both variants land on 21 January. Alcyone sets into a broad, elevated
+plateau to the west-northwest of Mytilene, not a single modest peak — five
+days earlier than the flat-horizon figure above, and two days earlier than
+an earlier version of this model that only considered the angle to Mt
+Olympus of Lesbos specifically.
 
 
 ## Plausible Range
 
-`horizon_adjust` above assumed Mytilene itself sits at sea level, but the
-paper places it on the range's lower eastern slopes, "at an altitude
-between 200m and 900m." Rather than pick one figure, `calculate_date_range`
-sweeps both ends and reports the earliest and latest result — a lower
-Mytilene means a bigger net dip to the peak, hence an earlier date; a
-higher Mytilene means a smaller dip and a later one. Refraction and the
-horizon adjustment stay on throughout.
+The paper places Mytilene on the range's lower eastern slopes, "at an
+altitude between 200m and 900m," without settling on one figure — and
+`_horizon_profile` above only tells us the horizon as seen from the one
+coordinate we queried, not from anywhere else on that slope. A real
+resurvey would need actual candidate coordinates further up the hillside,
+which we don't have. As a cheaper, if narrower, proxy we instead ask how
+much the horizon changes over the azimuth range immediately around
+Alcyone's own setting bearing: a steep local profile there would suggest
+nearby sites plausibly see quite different horizons, while a flat one
+suggests they don't. PVGIS itself only samples every 7.5 degrees, so the
+comparison has to span at least that far — anything narrower would just
+be re-reading `_horizon_elevation`'s own straight-line interpolation
+between two fixed endpoints, not a second measurement of the terrain.
 
-    MYTILENE_ELEVATION_RANGE = (200, 900)
+    PVGIS_SAMPLE_SPACING_DEGREES = 7.5
 
-    def calculate_date_range(location, time_range, astro_ref, peak,
-                              elevation_range):
-        return tuple(
-            calculate_date(
-                location, time_range, astro_ref,
-                horizon_adjust(location, peak, from_elevation=elevation))
-            for elevation in elevation_range)
+    def _setting_azimuth_degrees(location, astro_ref, date):
+        _, azimuth = _altaz_degrees(
+            _star(astro_ref), location, _local_midnight(date, location))
+        return azimuth
+
+    def _horizon_sensitivity_degrees(location, astro_ref, date,
+                                      delta=2 * PVGIS_SAMPLE_SPACING_DEGREES):
+        azimuth = _setting_azimuth_degrees(location, astro_ref, date)
+        base = _horizon_elevation(location, azimuth)
+        return max(abs(base - _horizon_elevation(location, azimuth + delta)),
+                   abs(base - _horizon_elevation(location, azimuth - delta)))
 
 ~example
-    calculate_date_range(
-        MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
-        MT_OLYMPUS_OF_LESBOS, MYTILENE_ELEVATION_RANGE
-    ) == ("23 January 570 BC", "25 January 570 BC")
+    _horizon_sensitivity_degrees(
+        MYTILENE, PLEIADES_ALCYONE, HistoricalDate(570, 1, 26, "BC")) < 1.0
 
-Even holding refraction and the horizon model fixed, the single "true"
-date the paper reports turns out to be one point in a small range driven
-by an input the paper itself only bounds loosely, not a solved constant.
+Alcyone sets into a wide, flat plateau in the real terrain data — the
+sampled horizon elevation is identical for two full PVGIS grid points
+either side of where the star actually crosses it, not merely within one
+interpolated segment. That is reassuring but not conclusive: it rules out
+one plausible failure mode, a sharp narrow peak that a slightly different
+vantage point would step around, but it is not the
+same evidence an actual resurvey of candidate hillside coordinates would
+give.
 
 "Midnight" is a second such input, and a shakier one: the paper admits it
 could not establish what kind of time-keeping device was used on Lesbos
@@ -292,7 +336,9 @@ precise instrument, so treating its "midnight" as exact to the minute
 assumes more precision than the source can support. Unlike the elevation
 bound above, the paper gives no figure for this, so a two-hour window —
 plus or minus an hour — here is our own placeholder judgement call, not
-a sourced number.
+a sourced number.  The midnight hour translation of the Greek itself is also 
+a matter of scholarly debate.
+
 
     MIDNIGHT_UNCERTAINTY_HOURS = 1.0
     MIDNIGHT_OFFSET_RANGE = (-MIDNIGHT_UNCERTAINTY_HOURS,
@@ -313,10 +359,10 @@ a sourced number.
 Alcyone's local setting time drifts only a few minutes earlier each night
 — the ordinary sidereal/solar mismatch — so the search's date-per-night
 resolution is coarse: a plausible hour of clock error either way is
-enough to walk the result across an entire calendar month. That dwarfs
-the elevation range above, and it means the day-level precision the
-paper reports rests on assuming a water clock far more exact than the
-paper's own note about it can support.
+enough to walk the result across an entire calendar month. That is a far
+bigger swing than the flat horizon sensitivity found above, and it means
+the day-level precision the paper reports rests on assuming a water clock
+far more exact than the paper's own note about it can support.
 
 The paper's own note 7 makes a different, checkable claim: that which
 year of Sappho's adult life you assume barely matters, since precession
@@ -399,7 +445,7 @@ project. The project grew with mostly arms-length dialogue around the
 implementation, inspecting the impact of varying parameters was added through
 prompting after the first running version. Most changes were performed by the
 coding agent, though there were also manual edits for structure, style and
-clarity. The project took about a day to implement, multi-tasking with other
+clarity. The project took about two days to implement, multi-tasking with other
 work.
 
 
@@ -409,7 +455,9 @@ Cuntz, M., Gurdemir, L., & George, M. (2016). Seasonal Dating of Sappho’s
 ‘Midnight Poem’ Revisited. Journal of Astronomical History and Heritage,
 19(1), 18-24.
 
-Wharton, H. (2018). Sappho. Project Gutenberg,
+Herschberg, I.S., and Mebius, J.E., 1990. ΔΕΔϒΚΕ men a ΣΕΛΑΝΝΑ. Mnemosyne, 43, 150–151. 
+
+Wharton, H. (2018). Sappho. Project Gutenberg. (Original work published 1887.)
 https://www.gutenberg.org/files/57390/57390-h/57390-h.htm
 
 Wikipedia contributors. (2025, February 2). Midnight poem. In Wikipedia,
@@ -417,46 +465,32 @@ The Free Encyclopedia. Retrieved 06:06, August 11, 2026, from
 https://en.wikipedia.org/w/index.php?title=Midnight_poem&oldid=1273552931
 
 
-## Test Fixtures
-
-The tests appendix below only holds assertions, not definitions, so these
-synthetic points — not the real Mytilene/Lesbos figures, chosen so the
-expected angles come out exact — live here instead.
-
-    HERE = (0.0, 0.0)
-    NEAR = (0.0, 1.0, 1000.0)
-    FAR = (0.0, 2.0, 1000.0)
-
-
-
 #Tests
 
-Geometry checks for `horizon_adjust`, using the synthetic points defined
-in ##Test Fixtures.
+Sanity checks for the real terrain profile and its azimuth interpolation,
+using Mytilene's own cached horizon data.
 
-##a peak directly overhead raises the horizon to the zenith
-    horizon_adjust(HERE, (0.0, 0.0, 1000.0)) == 90.0
+##azimuth wraps around the full circle
+    _horizon_elevation(MYTILENE, 0.0) == _horizon_elevation(MYTILENE, 360.0)
 
-##a peak level with the observer raises the horizon not at all
-    horizon_adjust(HERE, (0.0, 1.0, 0.0)) == 0.0
+##the horizon is never below the flat, sea-level baseline
+    all(elevation >= 0.0 for elevation in _horizon_profile(MYTILENE))
 
-##a closer peak of the same height raises the horizon more steeply
-    horizon_adjust(HERE, NEAR) > horizon_adjust(HERE, FAR)
+##the sea to the east is a lower horizon than the hills to the west
+    _horizon_elevation(MYTILENE, 90.0) < _horizon_elevation(MYTILENE, 270.0)
 
-##doubling the distance approximately halves the angle, at this scale
-    abs(horizon_adjust(HERE, NEAR) - 2 * horizon_adjust(HERE, FAR)) < 0.01
-
-##one degree of latitude matches the standard 111.2 km approximation
-    abs(_great_circle_metres(HERE, (1.0, 0.0)) - 111194.9) < 1.0
+##interpolating exactly at a sampled azimuth matches the raw profile value
+    _horizon_elevation(MYTILENE, 180.0) == _horizon_profile(MYTILENE).loc[180.0]
 
 
 #References
 
     #Historical Date
     from functools import cache, lru_cache
-    from math import asin, atan2, cos, degrees, radians, sin, sqrt
+    from pathlib import Path
 
+    import numpy as np
+    import pandas as pd
+    from pvlib.iotools import get_pvgis_horizon
     from skyfield.api import Loader, Star, wgs84
     from skyfield.data import hipparcos
-
-
