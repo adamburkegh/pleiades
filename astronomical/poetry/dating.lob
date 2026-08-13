@@ -5,19 +5,19 @@ The Pleiades are gone;
 Half the long night is spent, and yet
 I lie alone.
 
-This is the John Merivale translation of fragment 58 by Sappho, often known
-as the Midnight Poem. In 2016, scholars combined the information in the
-poem, the location of the poet, and astronomical calculations to provide an
-estimate of when the poem was written (Cuntz et al, 2016). That particular
-estimate was 570 BC. This project reproduces the calculation using current
-data science tools. It also explores how sensitive the result is to
-parameter selection, the details of which are the result of deep
-scholarship. Indeed, scholars point out the poem may not even be by Sappho.
-(See ##Authorship Debate.)
+This is the John Herman Merivale translation of fragment "168B Voigt" by Sappho,
+often known as the Midnight Poem. In 2016, scholars combined the information 
+in the poem, the location of the poet, and astronomical calculations to provide
+an estimate of when the poem was written (Cuntz et al, 2016). That particular
+estimate was 25 January - 6 April using the year 570 BC. This project 
+reproduces the calculation using current data science tools. It also explores 
+how sensitive the result is to parameter selection, the details of which are 
+the result of deep scholarship. Indeed, scholars point out the poem may not 
+even be by Sappho.  (See ##Authorship Debate.)
 
 The calculation assumes the report of seeing the constellation at a
 particular time is factual, rather than fictional. It also places Sappho
-at Myteline. The poem's other astronomical detail, the setting Moon, is
+at Mytilene. The poem's other astronomical detail, the setting Moon, is
 not used as a constraint here either, following the paper. (See
 ##Moon Phase.)
 
@@ -28,17 +28,18 @@ is turned off, unlike the paper. With refraction adjustment, we get the
 26th.
 
 We also perform a calculation adjusting for the height of the west
-horizon at Myteline. This gives a date of 23 January, which varies from
+horizon at Mytilene. This gives a date of 23 January, which varies from
 the paper, which comments that horizon adjustment does not change the
 result.
 
 Finally we check how sensitive the calculation is to varying estimated, ancient
 locations and dates within a range, in ##Plausible Range. Using ranges, we 
 find that an estimated January-February season is quite stable throughout 
-Sappho's adult life. This is a more useful guide than a single date considering
+Sappho's adult life. This is a narrower time range than the January-April range
+in the paper. A range is a more useful guide than a single date considering
 the basis for some of these parameters, e.g., midnight in a technological era
 without precise clocks. We test a range of values around the time of night and 
-the elevation of Myteline. Whether it was Sappho or another poet, and whether 
+the elevation of Mytilene. Whether it was Sappho or another poet, and whether 
 she was sixteen or sixty, we can imagine her in the sharp Mediterranean winter 
 air, looking at the stars, alone, remembering.
 
@@ -76,7 +77,7 @@ should be off.
 
 ~example
     calculate_date(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE
+        MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE
     ) == "26 January 570 BC"
 
 This is the result from the 2016 paper — reproduced by turning refraction
@@ -84,7 +85,7 @@ off, which is not what the paper itself did.
 
 ~example
     calculate_date(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE, refraction=False
+        MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE, refraction=False
     ) == "25 January 570 BC"
 
 
@@ -94,9 +95,9 @@ from age sixteen to her death.
     SAPPHO_ADULT_LIFE = (
         HistoricalDate(614, 1, 1, "BC"), HistoricalDate(570, 1, 1, "BC"))
 
-The location of Myteline, and the Hipparcos catalog number for Alcyone.
+The location of Mytilene, and the Hipparcos catalog number for Alcyone.
 
-    MYTELINE =  (39.11, 26.55)
+    MYTILENE =  (39.11, 26.55)
     PLEIADES_ALCYONE = 17702
 
 
@@ -206,7 +207,7 @@ compare against an unrefracted altitude.
 ## Horizon Adjustment
 
 The 2016 paper does not take into account that stars set in the west, and
-Mt Olympus of Lesbos is to the west of Myteline. So the horizon is higher,
+Mt Olympus of Lesbos is to the west of Mytilene. So the horizon is higher,
 and the Pleiades would set earlier. `horizon_adjust` returns the angle by
 which the effective horizon is raised, seen from `from_location` towards
 the peak at `to_location`, net of the observer's own elevation, given the
@@ -240,14 +241,14 @@ sensitive this search is to sub-degree changes in the threshold.
 
 ~example
     calculate_date(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
-        horizon_adjust(MYTELINE, MT_OLYMPUS_OF_LESBOS)
+        MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
+        horizon_adjust(MYTILENE, MT_OLYMPUS_OF_LESBOS)
     ) == "23 January 570 BC"
 
 ~example
     calculate_date(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
-        horizon_adjust(MYTELINE, MT_OLYMPUS_OF_LESBOS), refraction=False
+        MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
+        horizon_adjust(MYTILENE, MT_OLYMPUS_OF_LESBOS), refraction=False
     ) == "23 January 570 BC"
 
 With the horizon raised, refraction no longer changes the day: both
@@ -264,7 +265,7 @@ Mytilene means a bigger net dip to the peak, hence an earlier date; a
 higher Mytilene means a smaller dip and a later one. Refraction and the
 horizon adjustment stay on throughout.
 
-    MYTELINE_ELEVATION_RANGE = (200, 900)
+    MYTILENE_ELEVATION_RANGE = (200, 900)
 
     def calculate_date_range(location, time_range, astro_ref, peak,
                               elevation_range):
@@ -276,8 +277,8 @@ horizon adjustment stay on throughout.
 
 ~example
     calculate_date_range(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
-        MT_OLYMPUS_OF_LESBOS, MYTELINE_ELEVATION_RANGE
+        MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE,
+        MT_OLYMPUS_OF_LESBOS, MYTILENE_ELEVATION_RANGE
     ) == ("23 January 570 BC", "25 January 570 BC")
 
 Even holding refraction and the horizon model fixed, the single "true"
@@ -306,7 +307,7 @@ a sourced number.
 
 ~example
     calculate_date_midnight_range(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE, MIDNIGHT_OFFSET_RANGE
+        MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE, MIDNIGHT_OFFSET_RANGE
     ) == ("10 February 570 BC", "10 January 570 BC")
 
 Alcyone's local setting time drifts only a few minutes earlier each night
@@ -334,7 +335,7 @@ running `calculate_date` at both ends of #SAPPHO_ADULT_LIFE, 614 and
 
 ~example
     calculate_date_year_range(
-        MYTELINE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE
+        MYTILENE, SAPPHO_ADULT_LIFE, PLEIADES_ALCYONE
     ) == ("25 January 614 BC", "26 January 570 BC")
 
 Forty-four years apart, and the day of year moves by one. The paper's
@@ -376,12 +377,23 @@ during the Renaissance by Arsenius Apostolius.
 νύκτες, πάρα δ' ἔρχετ' ὤρα,
 ἔγω δὲ μόνα κατεύδω.
 
+
+## Poem Identification
+
+There are multiple naming schemes for fragmentary ancient texts. The best 
+accepted scheme for this poem is "fr. 168B Voigt (1971)", named after a well 
+known edition of the poems. The Cuntz et al (2016) paper uses Bergk's naming, 
+which is fragment 52, the same as in Wharton's translation.
+
+
 ## Development Process Notes
 
-This project was started with a hand authored high level specification in
-dating.lob, two function signatures with empty implementations for
-calculate_date() and horizon_adjust(), and two ~example tests. The code
-compiled and linted but the unit tests failed, in a consciously TDD style.
+This project was started with a hand authored high level specification and 
+design stub in dating.lob. This comprised a text description, two function 
+signatures with empty implementations for calculate_date() and 
+horizon_adjust(), and two ~example tests. The code compiled and linted but the 
+unit tests failed, in a consciously TDD style.
+
 A coding agent (Claude Code with Sonnet 5) was then introduced to implement the
 project. The project grew with mostly arms-length dialogue around the
 implementation, inspecting the impact of varying parameters was added through
@@ -420,7 +432,7 @@ expected angles come out exact — live here instead.
 #Tests
 
 Geometry checks for `horizon_adjust`, using the synthetic points defined
-in ##Horizon Adjustment.
+in ##Test Fixtures.
 
 ##a peak directly overhead raises the horizon to the zenith
     horizon_adjust(HERE, (0.0, 0.0, 1000.0)) == 90.0
