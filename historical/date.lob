@@ -6,9 +6,6 @@ reader would write it, e.g. `25 January 570 BC`, while still converting
 cleanly to astronomical year numbering (`1 BC` is year `0`, `2 BC` is year
 `-1`, and so on) wherever arithmetic against an ephemeris is needed.
 
-    from dataclasses import dataclass
-    from typing import Literal
-
     MONTH_NAMES = [
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December",
@@ -92,3 +89,9 @@ cleanly to astronomical year numbering (`1 BC` is year `0`, `2 BC` is year
 ##astronomical year conversion
     HistoricalDate(1, 1, 1, "AD").astronomical_year == 1
     HistoricalDate(2, 1, 1, "BC").astronomical_year == -1
+
+
+#References
+
+    from dataclasses import dataclass
+    from typing import Literal
