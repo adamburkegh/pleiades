@@ -24,8 +24,8 @@ Build and run notlob.
 
 `notlob test`
 
-On first run, `skyfield` data files of ~350 MB will download to `var/`. 
-These are required for the project.
+On first run, `skyfield` and PVGIS data files of ~350 MB will download to 
+`var/`.  These are required for the project.
 
 This particular project doesn't have a main entry point - the correct execution 
 of the tests is the evidence for the assertions in the text.
