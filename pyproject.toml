@@ -1,11 +1,12 @@
 [project]
 name = "pleiades"
-version = "1.0.0"
+version = "1.1.0"
 description = "Astronomical dating of Sappho's Midnight Poem, in notlob"
 requires-python = ">=3.12"
 dependencies = [
     "skyfield>=1.55",
     "pandas>=3.0",
+    "pvlib>=0.11",
 ]
 
 [tool.setuptools]
